@@ -13,6 +13,7 @@ This repo is intentionally small:
 - starts `llama-server` with predefined local profiles
 - switches between a few practical coding and chat profiles
 - optionally launches Open WebUI against the local server
+- optionally launches `aider` against the local server
 - optionally launches `claude` or `opencode` against the local server
 
 ## Requirements
@@ -22,6 +23,7 @@ This repo is intentionally small:
 - local model files under `~/models`
 - optional:
   - `open-webui` in a venv at `~/open-webui-venv`
+  - `aider`
   - `claude` CLI
   - `opencode`
 
@@ -79,6 +81,7 @@ Launch an IDE after selecting the profile:
 
 ```bash
 ./llm-launch claude
+./llm-launch aider
 ./llm-launch opencode
 ```
 

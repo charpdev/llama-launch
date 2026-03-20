@@ -180,6 +180,7 @@ usage() {
 Usage:
   llm-launch
   llm-launch --profile <profile>
+  llm-launch aider
   llm-launch claude
   llm-launch opencode
   llm-launch webui
@@ -222,6 +223,12 @@ case "$mode" in
     webui)
         start_webui
         ;;
+    aider)
+        exec env \
+            AIDER_OPENAI_API_BASE="$LLAMA_SERVER/v1" \
+            AIDER_OPENAI_API_KEY="local" \
+            aider --model "openai/$current_model" --no-show-model-warnings "${@:2}"
+        ;;
     claude)
         unset ANTHROPIC_AUTH_TOKEN || true
         export ANTHROPIC_API_KEY='sk-no-key-required'
@@ -237,4 +244,3 @@ case "$mode" in
         exit 1
         ;;
 esac
-
