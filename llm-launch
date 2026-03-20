@@ -1,0 +1,240 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LLAMA_SERVER="${LLAMA_SERVER:-http://127.0.0.1:8085}"
+LLAMA_BIN="${LLAMA_BIN:-$HOME/code/llama.cpp/build/bin/llama-server}"
+MODELS_DIR="${MODELS_DIR:-$HOME/models}"
+LOG_DIR="${LOG_DIR:-$HOME/llm-logs}"
+WEBUI_VENV="${WEBUI_VENV:-$HOME/open-webui-venv}"
+WEBUI_PORT="${WEBUI_PORT:-8080}"
+QWEN_NO_THINK_TEMPLATE="$REPO_DIR/templates/qwen3_no_empty_think.jinja"
+
+mkdir -p "$LOG_DIR"
+
+if [[ ! -x "$LLAMA_BIN" && -x "$HOME/llama-server/llama-server" ]]; then
+    LLAMA_BIN="$HOME/llama-server/llama-server"
+fi
+
+if [[ ! -x "$LLAMA_BIN" ]]; then
+    echo "llama-server binary not found at: $LLAMA_BIN" >&2
+    exit 1
+fi
+
+declare -A PROFILE_MODEL
+PROFILE_MODEL["jackrong-27b-q3ks"]="$MODELS_DIR/Jackrong/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-GGUF/Qwen3.5-27B.Q3_K_S.gguf"
+PROFILE_MODEL["hauhau-27b-q3km"]="$MODELS_DIR/HauhauCS/Qwen3.5-27B-Uncensored-HauhauCS-Aggressive/Qwen3.5-27B-Uncensored-HauhauCS-Aggressive-Q3_K_M.gguf"
+PROFILE_MODEL["qwen3-coder-30b-ud-q3kxl"]="$MODELS_DIR/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF/Qwen3-Coder-30B-A3B-Instruct-UD-Q3_K_XL.gguf"
+PROFILE_MODEL["qwen3-coder-30b-ud-q3kxl-96k"]="$MODELS_DIR/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF/Qwen3-Coder-30B-A3B-Instruct-UD-Q3_K_XL.gguf"
+PROFILE_MODEL["qwen35-35b-q4km"]="$MODELS_DIR/unsloth/Qwen3.5-35B-A3B-GGUF/Qwen3.5-35B-A3B-Q4_K_M.gguf"
+PROFILE_MODEL["qwen35-35b-ud-q2kxl"]="$MODELS_DIR/unsloth/Qwen3.5-35B-A3B-GGUF/Qwen3.5-35B-A3B-UD-Q2_K_XL.gguf"
+
+declare -A PROFILE_CONTEXT
+PROFILE_CONTEXT["jackrong-27b-q3ks"]="131072"
+PROFILE_CONTEXT["hauhau-27b-q3km"]="131072"
+PROFILE_CONTEXT["qwen3-coder-30b-ud-q3kxl"]="65536"
+PROFILE_CONTEXT["qwen3-coder-30b-ud-q3kxl-96k"]="98304"
+PROFILE_CONTEXT["qwen35-35b-q4km"]="131072"
+PROFILE_CONTEXT["qwen35-35b-ud-q2kxl"]="262144"
+
+declare -A PROFILE_CTK
+PROFILE_CTK["jackrong-27b-q3ks"]="q8_0"
+PROFILE_CTK["hauhau-27b-q3km"]="q8_0"
+PROFILE_CTK["qwen3-coder-30b-ud-q3kxl"]="q8_0"
+PROFILE_CTK["qwen3-coder-30b-ud-q3kxl-96k"]="q8_0"
+PROFILE_CTK["qwen35-35b-q4km"]="q8_0"
+PROFILE_CTK["qwen35-35b-ud-q2kxl"]="q8_0"
+
+declare -A PROFILE_NGL
+PROFILE_NGL["jackrong-27b-q3ks"]="auto"
+PROFILE_NGL["hauhau-27b-q3km"]="auto"
+PROFILE_NGL["qwen3-coder-30b-ud-q3kxl"]="auto"
+PROFILE_NGL["qwen3-coder-30b-ud-q3kxl-96k"]="auto"
+PROFILE_NGL["qwen35-35b-q4km"]="26"
+PROFILE_NGL["qwen35-35b-ud-q2kxl"]="auto"
+
+declare -A PROFILE_NCMOE
+PROFILE_NCMOE["jackrong-27b-q3ks"]=""
+PROFILE_NCMOE["hauhau-27b-q3km"]=""
+PROFILE_NCMOE["qwen3-coder-30b-ud-q3kxl"]=""
+PROFILE_NCMOE["qwen3-coder-30b-ud-q3kxl-96k"]=""
+PROFILE_NCMOE["qwen35-35b-q4km"]="8"
+PROFILE_NCMOE["qwen35-35b-ud-q2kxl"]="8"
+
+declare -A PROFILE_TEMPLATE
+PROFILE_TEMPLATE["jackrong-27b-q3ks"]=""
+PROFILE_TEMPLATE["hauhau-27b-q3km"]=""
+PROFILE_TEMPLATE["qwen3-coder-30b-ud-q3kxl"]=""
+PROFILE_TEMPLATE["qwen3-coder-30b-ud-q3kxl-96k"]=""
+PROFILE_TEMPLATE["qwen35-35b-q4km"]="$QWEN_NO_THINK_TEMPLATE"
+PROFILE_TEMPLATE["qwen35-35b-ud-q2kxl"]="$QWEN_NO_THINK_TEMPLATE"
+
+declare -A PROFILE_EXTRA
+PROFILE_EXTRA["jackrong-27b-q3ks"]="--jinja --reasoning-format deepseek --reasoning-budget 0"
+PROFILE_EXTRA["hauhau-27b-q3km"]="--jinja --reasoning-format deepseek --reasoning-budget 0"
+PROFILE_EXTRA["qwen3-coder-30b-ud-q3kxl"]="--jinja --reasoning-budget 0 --reasoning-format none --fit on --fit-ctx 65536 --fit-target 512M"
+PROFILE_EXTRA["qwen3-coder-30b-ud-q3kxl-96k"]="--jinja --reasoning-budget 0 --reasoning-format none --fit on --fit-ctx 98304 --fit-target 512M"
+PROFILE_EXTRA["qwen35-35b-q4km"]="--jinja --reasoning-budget 0 --reasoning-format none --fit on --fit-ctx 131072 --fit-target 512M"
+PROFILE_EXTRA["qwen35-35b-ud-q2kxl"]="--jinja --reasoning-budget 0 --reasoning-format none"
+
+LLAMA_PROFILES=(
+    "jackrong-27b-q3ks|Jackrong 27B Q3_K_S (128k reasoning/chat)"
+    "hauhau-27b-q3km|HauhauCS 27B Q3_K_M (128k uncensored)"
+    "qwen3-coder-30b-ud-q3kxl|Qwen3-Coder-30B UD-Q3_K_XL (65k default coding)"
+    "qwen3-coder-30b-ud-q3kxl-96k|Qwen3-Coder-30B UD-Q3_K_XL (96k higher-context coding)"
+    "qwen35-35b-q4km|Qwen3.5-35B Q4_K_M (131k experimental coding)"
+    "qwen35-35b-ud-q2kxl|Qwen3.5-35B UD-Q2_K_XL (256k fast 35B coding)"
+)
+
+DEFAULT_PROFILE="qwen3-coder-30b-ud-q3kxl"
+
+get_running_model() {
+    curl -s --max-time 3 "$LLAMA_SERVER/v1/models" 2>/dev/null \
+        | python3 -c "import sys,json; d=json.load(sys.stdin); m=d.get('data',[]); print(m[0].get('id','') if m else '')" 2>/dev/null || true
+}
+
+start_llama_profile() {
+    local profile="$1"
+    local model="${PROFILE_MODEL[$profile]}"
+    local ctx="${PROFILE_CONTEXT[$profile]}"
+    local ctk="${PROFILE_CTK[$profile]}"
+    local ngl="${PROFILE_NGL[$profile]}"
+    local ncmoe="${PROFILE_NCMOE[$profile]}"
+    local template="${PROFILE_TEMPLATE[$profile]}"
+    local extra="${PROFILE_EXTRA[$profile]}"
+
+    if [[ ! -f "$model" ]]; then
+        echo "Model not found: $model" >&2
+        return 1
+    fi
+
+    pkill -f "llama-server" 2>/dev/null || true
+    sleep 1
+
+    local ncmoe_arg=()
+    [[ -n "$ncmoe" ]] && ncmoe_arg=(-ncmoe "$ncmoe")
+    local template_arg=()
+    [[ -n "$template" ]] && template_arg=(--chat-template-file "$template")
+
+    LLAMA_CHAT_TEMPLATE_KWARGS='{"enable_thinking":false}' \
+    nohup "$LLAMA_BIN" \
+        -m "$model" -a "$profile" \
+        --host 0.0.0.0 --port 8085 \
+        -ngl "$ngl" -c "$ctx" -ctk "$ctk" -ctv "$ctk" -fa on \
+        --threads 8 --metrics \
+        "${ncmoe_arg[@]}" "${template_arg[@]}" $extra \
+        >"$LOG_DIR/llama-${profile}.out.log" 2>"$LOG_DIR/llama-${profile}.err.log" &
+
+    echo "llama-server starting (PID $!)"
+    for _ in $(seq 1 45); do
+        if curl -sf "$LLAMA_SERVER/health" | grep -q '"status":"ok"' 2>/dev/null; then
+            echo "server ready"
+            return 0
+        fi
+        sleep 2
+    done
+    echo "server timeout" >&2
+    return 1
+}
+
+start_webui() {
+    if curl -sf "http://127.0.0.1:${WEBUI_PORT}/" >/dev/null 2>&1; then
+        return 0
+    fi
+    nohup "$REPO_DIR/start-open-webui.sh" >"$LOG_DIR/open-webui.out.log" 2>"$LOG_DIR/open-webui.err.log" &
+    echo "Open WebUI starting (PID $!)"
+}
+
+sync_opencode_config() {
+    local server="$1" model="$2"
+    local config="${XDG_CONFIG_HOME:-$HOME/.config}/opencode/opencode.json"
+    mkdir -p "$(dirname "$config")"
+    python3 - "$config" "$server" "$model" <<'PY'
+import json, os, sys
+config_path, server_url, model_name = sys.argv[1:4]
+config = {}
+if os.path.exists(config_path):
+    try:
+        with open(config_path) as f:
+            config = json.load(f)
+    except Exception:
+        config = {}
+if not isinstance(config, dict):
+    config = {}
+config.setdefault("$schema", "https://opencode.ai/config.json")
+providers = config.setdefault("provider", {})
+llamacpp = providers.setdefault("llamacpp", {})
+llamacpp["npm"] = "@ai-sdk/openai-compatible"
+llamacpp["name"] = "llama.cpp (local)"
+llamacpp.setdefault("options", {})["baseURL"] = f"{server_url}/v1"
+llamacpp.setdefault("models", {})["current"] = {"name": f"{model_name} [llama.cpp]"}
+config["model"] = "llamacpp/current"
+with open(config_path, "w") as f:
+    json.dump(config, f, indent=2)
+    f.write("\n")
+PY
+}
+
+usage() {
+    cat <<'EOF'
+Usage:
+  llm-launch
+  llm-launch --profile <profile>
+  llm-launch claude
+  llm-launch opencode
+  llm-launch webui
+EOF
+}
+
+profile_only=""
+mode="${1:-}"
+
+if [[ "${1:-}" == "--profile" ]]; then
+    profile_only="${2:-}"
+    [[ -n "$profile_only" ]] || { usage; exit 1; }
+    start_llama_profile "$profile_only"
+    exit 0
+fi
+
+if [[ -z "$mode" ]]; then
+    echo "Available profiles:"
+    for i in "${!LLAMA_PROFILES[@]}"; do
+        IFS='|' read -r name desc <<< "${LLAMA_PROFILES[$i]}"
+        echo "  $((i+1))) $desc"
+    done
+    read -rp "Select profile [1-${#LLAMA_PROFILES[@]}] or Enter for default: " choice
+    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#LLAMA_PROFILES[@]} )); then
+        IFS='|' read -r selected _ <<< "${LLAMA_PROFILES[$((choice-1))]}"
+    else
+        selected="$DEFAULT_PROFILE"
+    fi
+    start_llama_profile "$selected"
+    exit 0
+fi
+
+current_model="$(get_running_model)"
+if [[ -z "$current_model" ]]; then
+    start_llama_profile "$DEFAULT_PROFILE"
+    current_model="$DEFAULT_PROFILE"
+fi
+
+case "$mode" in
+    webui)
+        start_webui
+        ;;
+    claude)
+        unset ANTHROPIC_AUTH_TOKEN || true
+        export ANTHROPIC_API_KEY='sk-no-key-required'
+        export ANTHROPIC_MODEL="$current_model"
+        exec env ANTHROPIC_BASE_URL="$LLAMA_SERVER" claude "${@:2}"
+        ;;
+    opencode)
+        sync_opencode_config "$LLAMA_SERVER" "$current_model"
+        exec opencode -m "llamacpp/current" "${@:2}"
+        ;;
+    *)
+        usage
+        exit 1
+        ;;
+esac
+

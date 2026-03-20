@@ -1,0 +1,15 @@
+{% set ns = namespace(tool_index = 0, last_query_index = -1) %}
+{% for message in messages %}
+    {% if loop.first and message['role'] != 'system' %}
+        <|im_start|>system
+You are a helpful assistant.<|im_end|>
+    {% endif %}
+    <|im_start|>{{ message['role'] }}
+{{ message['content'] }}<|im_end|>
+{% if message['role'] == 'user' %}
+    {% set ns.last_query_index = loop.index0 %}
+{% endif %}
+{% endfor %}
+{% if add_generation_prompt %}
+<|im_start|>assistant
+{% endif %}
