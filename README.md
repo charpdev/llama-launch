@@ -74,6 +74,7 @@ Choose a profile directly:
 ```bash
 ./llm-launch --profile qwen3-coder-30b-ud-q3kxl
 ./llm-launch --profile qwen3-coder-30b-ud-q3kxl-96k
+./llm-launch --profile qwen3-coder-next-iq4xs
 ./llm-launch --profile qwen35-35b-ud-q2kxl
 ```
 
@@ -101,6 +102,8 @@ Start Open WebUI:
   Fast default coding profile
 - `qwen3-coder-30b-ud-q3kxl-96k`
   Higher-context 30B coding profile
+- `qwen3-coder-next-iq4xs`
+  Experimental Coder-Next profile
 - `qwen35-35b-q4km`
   Experimental 35B coding profile
 - `qwen35-35b-ud-q2kxl`
